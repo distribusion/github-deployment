@@ -163,12 +163,12 @@ fn main () {
         .author("Fedorov Sergey <sergey.fedorov@distribusion.com>")
         .about("Wrap any command with github deployment updates")
         .args_from_usage(
-            "-r, --repo=[STRING] 'Github repository path as <owner>/<repo>'
-             -s --sha=[STRING] 'SHA hash of the deployed code'
+            "-p --repo=[STRING] 'Github repository path as <owner>/<repo>'
+             -r --ref=[STRING] 'SHA hash of the deployed code'
              -c --command=[STRING] 'Command to execute in /bin/bash -l'").get_matches();
 
     let repo = matches.value_of("repo").expect("Please provide a github repo like <owner>/<repo>");
-    let sha = matches.value_of("sha").expect("Please provide a sha hash of the code");
+    let sha = matches.value_of("ref").expect("Please provide a sha hash of the code");
     let command = matches.value_of("command").expect("Please provide a command to execute");
 
     run_command_and_exit(Arguments { command: command, sha: sha, repo: repo })
