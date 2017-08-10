@@ -8,11 +8,12 @@ use serde_json::Value;
 use clap::{App, Arg};
 
 use std::fmt;
+use std::process;
 
 const GITHUB_API_TOKEN: &'static str = env!("GITHUB_API_TOKEN");
 
-#[derive(PartialOrd, Ord, PartialEq, Eq, Debug)]
-enum DeploymentStatus {
+#[derive(PartialEq, Eq, Debug)]
+enum Status {
     Unknown,
     Pending,
     Error,
@@ -20,83 +21,98 @@ enum DeploymentStatus {
     Failure
 }
 
-impl<'a> From<&'a str> for DeploymentStatus {
+impl<'a> From<&'a str> for Status {
     fn from(origin: &str) -> Self {
         match origin {
-            "pending" => DeploymentStatus::Pending,
-            "error" => DeploymentStatus::Error,
-            "success" => DeploymentStatus::Success,
-            "failure" => DeploymentStatus::Failure,
-            _ => DeploymentStatus::Unknown
+            "pending" => Status::Pending,
+            "error" => Status::Error,
+            "success" => Status::Success,
+            "failure" => Status::Failure,
+            _ => Status::Unknown
         }
     }
 }
 
-impl fmt::Display for DeploymentStatus {
+impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DeploymentStatus::Unknown => write!(f, "unknown"),
-            &DeploymentStatus::Pending => write!(f, "pending"),
-            &DeploymentStatus::Error => write!(f, "error"),
-            &DeploymentStatus::Success => write!(f, "success"),
-            &DeploymentStatus::Failure => write!(f, "failure")
+            &Status::Unknown => write!(f, "unknown"),
+            &Status::Pending => write!(f, "pending"),
+            &Status::Error => write!(f, "error"),
+            &Status::Success => write!(f, "success"),
+            &Status::Failure => write!(f, "failure")
         }
     }
 }
 
+#[derive(Debug)]
 struct Deployment<'a> {
-    id: Option<u64>,
+    id: u64,
     repo: &'a str,
     head: &'a str,
     base: Option<&'a str>
 }
 
 impl<'a> Deployment<'a> {
-    pub fn create(repo: &'a str, head: &'a str, base: Option<&'a str>) -> Self {
-        let url = &format!("https://api.github.com/repos/{}/deployments", repo);
+    pub fn payload(head: &'a str, base: Option<&'a str>) -> String {
+        let previous_ref = if base.is_some() {
+            format!(r#"
+              "previous_ref": "{}"
+            "#, base.unwrap())
+        } else {
+            String::new()
+        };
 
-        // TODO: Add payload in case of `base` given
-        let payload = &format!(r#"{{
-"ref": "{}",
-"auto_merge": false,
-"environment": "production"
-}}"#, head);
-
-        let response = post(url, payload).or_else(|e| {
-            eprintln!("Failed to create new deployment: {:?}", e);
-            Err(e)
-        }).unwrap_or(String::from("{}"));
-
-        let json = serde_json::from_str(&response).unwrap_or(Value::Null);
-        let id = json.as_object().and_then(|o| { o["id"].as_u64() });
-
-        Deployment { id: id, repo: repo, head: head, base: base }
+        format!(r#"{{
+          "ref": "{}",
+          "auto_merge": false,
+          "environment": "production",
+          "payload": {{
+            {}
+          }}
+        }}"#, head, previous_ref)
     }
 
-    pub fn update_status(&self, status: &DeploymentStatus) -> Result<(), &'static str> {
-        if self.id.is_none() { return Err("Unknown deployment ID") }
+    pub fn create(repo: &'a str, head: &'a str, base: Option<&'a str>) -> Result<Self, &'static str> {
+        let url = &format!("https://api.github.com/repos/{}/deployments", repo);
+        let payload = &Deployment::payload(head, base);
 
-        let url = &format!(
-            "https://api.github.com/repos/{}/deployments/{}/statuses",
-            self.repo, self.id.unwrap()
-        );
+        // TODO: Debug mode
+        // println!("PAYLOAD :: {}", payload);
+
+        let response = post(url, payload)?;
+
+        // TODO: Debug mode
+        // println!("RESPONSE :: {:?}", response);
+
+        let json: Value = serde_json::from_str(&response)
+            .map_err(|_| "payload is not a valid json" )?;
+        let id = json.as_object().and_then(|o| { o["id"].as_u64() })
+            .ok_or("json attribute 'id' is missing")?;
+
+        Ok(Deployment { id: id, repo: repo, head: head, base: base })
+    }
+
+    pub fn update_status(&self, status: &Status) -> Result<(), &'static str> {
         let payload = &format!(r#"{{"state": "{}"}}"#, status);
+        let url = &format!("https://api.github.com/repos/{}/deployments/{}/statuses",
+                           self.repo, self.id);
 
-        let response = post(url, payload).or_else(|e| {
-            eprintln!("Failed to create new deployment: {:?}", e);
-            Err(e)
-        }).unwrap_or(String::from("{}"));
+        let response = post(url, payload)?;
 
-        let json = serde_json::from_str(&response).unwrap_or(Value::Null);
-        json.as_object().and_then(|o| { o["state"].as_str() })
-            .ok_or("Failed find deployment status in response")
-            .and_then(|s| {
-                if *status == DeploymentStatus::from(s) {
-                    Ok(())
-                } else {
-                    Err("Status didn't change after update")
-                }
-            })
+        let json: Value = serde_json::from_str(&response)
+            .map_err(|_| "payload is not a valid json" )?;
+
+        // json.as_object().and_then(|o| { o["state"].as_str() })
+        //     .ok_or("Failed find deployment status in response")
+        //     .and_then(|s| {
+        //         if *status == Status::from(s) {
+        //             Ok(())
+        //         } else {
+        //             Err("Status didn't change after update")
+        //         }
+        //     })
+        Ok(())
     }
 }
 
@@ -105,6 +121,7 @@ pub fn post(url: &str, payload: &str) -> Result<String, &'static str> {
     let mut buffer = Vec::new();
     let mut easy = Easy::new();
     let mut headers = List::new();
+    let success_response_codes = &[200, 201];
 
     headers.append("User-Agent: github-deployment").unwrap();
     headers.append("Accept: application/vnd.github.v3+json").unwrap();
@@ -125,12 +142,21 @@ pub fn post(url: &str, payload: &str) -> Result<String, &'static str> {
         transfer.perform().unwrap();
     }
 
-    let empty_json_result: Result<String, &'static str> = Ok(String::from("{}"));
-    String::from_utf8(buffer).or(empty_json_result)
+    let response_code = &easy.response_code().unwrap_or(500);
+    if !success_response_codes.iter().any(|code| { code == response_code }) {
+        return Err("http response code not in 200 or 201")
+    }
+
+    // TODO: Add debug mode
+    println!("HTTP CODE :: {:?}", response_code);
+    println!("BUFFER :: {:?}", String::from_utf8(buffer.clone()));
+
+    String::from_utf8(buffer)
+        .map_err(|_| { "response can not be transformed to String" })
 }
 
-fn main () {
-    let matches = App::new("Github Deployment")
+fn cli<'a, 'b>() -> App<'a, 'b> {
+    App::new("Github Deployment")
         .version("1.0")
         .author("Fedorov Sergey <sergey.fedorov@distribusion.com>")
         .about("Create a new Github deployment and set its status")
@@ -147,24 +173,33 @@ fn main () {
                 .default_value("pending") // FIXME: Take from enum
                 .help("A deployment status to be set")
         ).arg(
+            Arg::with_name("quiet").required(false).short("q").long("quiet")
+                .help("Exit without a failure even if error happened")
+        ).arg(
             Arg::with_name("repo").required(true)
                 .help("A Github repository path as <owner>/<repo>")
-        ).get_matches();
+        )
+}
 
-    let repo = matches.value_of("repo").unwrap();
-    let head = matches.value_of("head").unwrap();
-    let status = matches.value_of("status").unwrap();
-    let base = matches.value_of("base");
+fn main () {
+    let args = cli().get_matches();
+    let repo = args.value_of("repo").unwrap();
+    let head = args.value_of("head").unwrap();
+    let base = args.value_of("base");
 
     let deployment = Deployment::create(repo, head, base);
-    let deployment_status = DeploymentStatus::from(status);
 
-    if let Err(reason) = deployment.update_status(&deployment_status) {
-        eprintln!("Status update of deployment#{} to '{}' failed\nReason: {}",
-                  deployment.id.unwrap_or(0), deployment_status, reason);
-    } else {
-        println!("Status update of deployment#{} to '{}' succeed",
-                 deployment.id.unwrap_or(0), deployment_status);
+    println!("DEPLOYMENT :: {:?}", deployment);
 
+    if deployment.is_err() {
+        eprintln!("[ERROR] Failed to create deployment: {}", deployment.unwrap_err());
+        if args.is_present("quiet") { process::exit(0) } else { process::exit(1) }
+    }
+
+    let status_update = deployment.unwrap()
+        .update_status(&Status::from(args.value_of("status").unwrap()));
+    if status_update.is_err() {
+        eprintln!("[ERROR] Failed to update deployment status: {}", status_update.unwrap_err());
+        if args.is_present("quiet") { process::exit(0) } else { process::exit(1) }
     }
 }
