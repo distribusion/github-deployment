@@ -78,12 +78,12 @@ impl<'a> Deployment<'a> {
         let payload = &Deployment::payload(head, base);
 
         // TODO: Debug mode
-        // println!("PAYLOAD :: {}", payload);
+        println!("PAYLOAD :: {}", payload);
 
         let response = post(url, payload)?;
 
         // TODO: Debug mode
-        // println!("RESPONSE :: {:?}", response);
+        println!("RESPONSE :: {:?}", response);
 
         let json: Value = serde_json::from_str(&response)
             .map_err(|_| "payload is not a valid json" )?;
@@ -99,20 +99,13 @@ impl<'a> Deployment<'a> {
                            self.repo, self.id);
 
         let response = post(url, payload)?;
-
         let json: Value = serde_json::from_str(&response)
             .map_err(|_| "payload is not a valid json" )?;
 
-        // json.as_object().and_then(|o| { o["state"].as_str() })
-        //     .ok_or("Failed find deployment status in response")
-        //     .and_then(|s| {
-        //         if *status == Status::from(s) {
-        //             Ok(())
-        //         } else {
-        //             Err("Status didn't change after update")
-        //         }
-        //     })
-        Ok(())
+        json.as_object()
+            .and_then(|o| { o["state"].as_str() })
+            .and_then(|s| { if *status == Status::from(s) { Some(()) } else { None } })
+            .ok_or("deployment update status do not change")
     }
 }
 
