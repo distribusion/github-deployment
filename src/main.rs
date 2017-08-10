@@ -8,9 +8,20 @@ use serde_json::Value;
 use clap::{App, Arg};
 
 use std::fmt;
+use std::env;
 use std::process;
 
 const GITHUB_API_TOKEN: &'static str = env!("GITHUB_API_TOKEN");
+const DEBUG_FLAG: &'static str = "DEBUG";
+
+macro_rules! debug {
+    ($($arg:tt)*) => (
+        match env::var(DEBUG_FLAG) {
+            Ok(flag) => { if flag == "true" { println!($($arg)*) } },
+            Err(_) => { panic!("Unable to fetch env var {}", DEBUG_FLAG) }
+        }
+    )
+}
 
 #[derive(PartialEq, Eq, Debug)]
 enum Status {
@@ -77,13 +88,11 @@ impl<'a> Deployment<'a> {
         let url = &format!("https://api.github.com/repos/{}/deployments", repo);
         let payload = &Deployment::payload(head, base);
 
-        // TODO: Debug mode
-        println!("PAYLOAD :: {}", payload);
+        debug!("[DEBUG] Deployment create payload: {}", payload);
 
         let response = post(url, payload)?;
 
-        // TODO: Debug mode
-        println!("RESPONSE :: {:?}", response);
+        debug!("[DEBUG] Deployment create response: {}", response);
 
         let json: Value = serde_json::from_str(&response)
             .map_err(|_| "payload is not a valid json" )?;
@@ -98,7 +107,12 @@ impl<'a> Deployment<'a> {
         let url = &format!("https://api.github.com/repos/{}/deployments/{}/statuses",
                            self.repo, self.id);
 
+        debug!("[DEBUG] Deployment status update payload: {}", payload);
+
         let response = post(url, payload)?;
+
+        debug!("[DEBUG] Deployment status update response: {}", response);
+
         let json: Value = serde_json::from_str(&response)
             .map_err(|_| "payload is not a valid json" )?;
 
@@ -109,8 +123,7 @@ impl<'a> Deployment<'a> {
     }
 }
 
-
-pub fn post(url: &str, payload: &str) -> Result<String, &'static str> {
+fn post(url: &str, payload: &str) -> Result<String, &'static str> {
     let mut buffer = Vec::new();
     let mut easy = Easy::new();
     let mut headers = List::new();
@@ -140,12 +153,10 @@ pub fn post(url: &str, payload: &str) -> Result<String, &'static str> {
         return Err("http response code not in 200 or 201")
     }
 
-    // TODO: Add debug mode
-    println!("HTTP CODE :: {:?}", response_code);
-    println!("BUFFER :: {:?}", String::from_utf8(buffer.clone()));
+    debug!("[DEBUG] POST {}: ({}) {:?}",
+           url, response_code, String::from_utf8(buffer.clone()));
 
-    String::from_utf8(buffer)
-        .map_err(|_| { "response can not be transformed to String" })
+    String::from_utf8(buffer).map_err(|_| { "response can not be transformed to String" })
 }
 
 fn cli<'a, 'b>() -> App<'a, 'b> {
@@ -167,7 +178,11 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                 .help("A deployment status to be set")
         ).arg(
             Arg::with_name("quiet").required(false).short("q").long("quiet")
-                .help("Exit without a failure even if error happened")
+                .help("Exit without a failure even if shit happened")
+        ).arg(
+            Arg::with_name("debug").required(false).short("d").long("debug")
+                .conflicts_with("quiet")
+                .help("Show the debug messages")
         ).arg(
             Arg::with_name("repo").required(true)
                 .help("A Github repository path as <owner>/<repo>")
@@ -180,9 +195,11 @@ fn main () {
     let head = args.value_of("head").unwrap();
     let base = args.value_of("base");
 
+    env::set_var(DEBUG_FLAG, &format!("{}", args.is_present("debug")));
+
     let deployment = Deployment::create(repo, head, base);
 
-    println!("DEPLOYMENT :: {:?}", deployment);
+    debug!("[DEBUG] Deployment: {:?}", deployment);
 
     if deployment.is_err() {
         eprintln!("[ERROR] Failed to create deployment: {}", deployment.unwrap_err());
