@@ -1,3 +1,5 @@
+.env
 target
+releases
 Cargo.lock
 github-deployment

@@ -3,6 +3,9 @@ extern crate serde_json;
 extern crate curl;
 extern crate clap;
 
+#[macro_use]
+extern crate lazy_static;
+
 use curl::easy::{Easy, List};
 use serde_json::Value;
 use clap::{App, Arg};
@@ -13,6 +16,12 @@ use std::process;
 
 const GITHUB_API_TOKEN: &'static str = env!("GITHUB_API_TOKEN");
 const DEBUG_FLAG: &'static str = "DEBUG";
+const REVISION: &'static str = env!("REVISION");
+const VERSION: &'static str = "1.0";
+
+lazy_static! {
+    static ref LONG_VERSION: String = format!("{} [{}]", VERSION, REVISION);
+}
 
 macro_rules! debug {
     ($($arg:tt)*) => (
@@ -161,7 +170,8 @@ fn post(url: &str, payload: &str) -> Result<String, &'static str> {
 
 fn cli<'a, 'b>() -> App<'a, 'b> {
     App::new("Github Deployment")
-        .version("1.0")
+        .version(VERSION)
+        .long_version(LONG_VERSION.as_ref())
         .author("Fedorov Sergey <sergey.fedorov@distribusion.com>")
         .about("Create a new Github deployment and set its status")
         .arg(

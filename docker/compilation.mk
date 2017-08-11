@@ -1,10 +1,12 @@
 TARGET ?= x86_64-unknown-linux-gnu
-BIN_NAME ?= unknown
 ROOT_PATH ?= .
+TARGET_BIN_NAME ?= unknown
+RELEASE_BIN_NAME ?= unknown
+
 target-path = $(ROOT_PATH)/target/$(TARGET)
 target-bin-path = $(target-path)/release/$(BIN_NAME)
-release-path = $(ROOT_PATH)/release
-release-bin-path = $(release-path)/$(BIN_NAME)
+release-path = $(ROOT_PATH)/release/$(TARGET)
+release-bin-path = $(release-path)/$(RELEASE_BIN_NAME)
 
 all: $(release-bin-path)
 
