@@ -22,3 +22,6 @@ release:
 
 build:
 	REVISION=$(revision) cargo build
+
+clean:
+	rm -rf target releases
