@@ -19,6 +19,12 @@ const DEBUG_FLAG: &'static str = "DEBUG";
 const REVISION: &'static str = env!("REVISION");
 const VERSION: &'static str = "1.0";
 
+const PENDING_STATUS: &'static str = "pending";
+const ERROR_STATUS: &'static str = "error";
+const SUCCESS_STATUS: &'static str = "success";
+const FAILURE_STATUS: &'static str = "failure";
+const UNKNOWN_STATUS: &'static str = "unknown";
+
 lazy_static! {
     static ref LONG_VERSION: String = format!("{} [{}]", VERSION, REVISION);
 }
@@ -44,11 +50,23 @@ enum Status {
 impl<'a> From<&'a str> for Status {
     fn from(origin: &str) -> Self {
         match origin {
-            "pending" => Status::Pending,
-            "error" => Status::Error,
-            "success" => Status::Success,
-            "failure" => Status::Failure,
+            PENDING_STATUS => Status::Pending,
+            ERROR_STATUS => Status::Error,
+            SUCCESS_STATUS => Status::Success,
+            FAILURE_STATUS => Status::Failure,
             _ => Status::Unknown
+        }
+    }
+}
+
+impl<'a> Into<&'a str> for Status {
+    fn into(self) -> &'static str {
+        match self {
+            Status::Unknown => UNKNOWN_STATUS,
+            Status::Pending => PENDING_STATUS,
+            Status::Error => ERROR_STATUS,
+            Status::Success => SUCCESS_STATUS,
+            Status::Failure => FAILURE_STATUS
         }
     }
 }
@@ -176,15 +194,16 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
         .about("Create a new Github deployment and set its status")
         .arg(
             Arg::with_name("head").required(true).takes_value(true).long("head")
-                .help("The ref to deploy. This can be a branch, tag, or SHA")
+                .help("The ref of the current deployment. This can be a branch, tag, or SHA")
         ).arg(
             Arg::with_name("base").required(false).takes_value(true).long("base").
-                help("The ref of previous deployment. This can be a branch, tag, or SHA")
+                help("The ref of the previous deployment. This can be a branch, tag, or SHA")
 
         ).arg(
             Arg::with_name("status").required(true).takes_value(true).long("status")
-                .possible_values(&["pending", "error", "success", "failure"]) // FIXME: Take from enum
-                .default_value("pending") // FIXME: Take from enum
+                .possible_values(&[Status::Pending.into(), Status::Error.into(),
+                                   Status::Success.into(), Status::Failure.into()])
+                .default_value(Status::Pending.into())
                 .help("A deployment status to be set")
         ).arg(
             Arg::with_name("quiet").required(false).short("q").long("quiet")
