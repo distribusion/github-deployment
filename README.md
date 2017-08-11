@@ -24,6 +24,14 @@ $ ls -l releases/x86_64-unknown-linux-gnu/
     $ rustup default 1.19.0
     ```
 
+3. Build the binary and for simplicity link it
+
+    ```bash
+    $ make
+    $ ln -s ./target/debug/github-deployment ./github-deployment
+    ```
+
+
 # TODO
 
 - [x] Better `compilation.mk` with mounting
