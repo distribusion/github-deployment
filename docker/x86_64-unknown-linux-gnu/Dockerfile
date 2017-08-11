@@ -43,7 +43,7 @@ RUN apt-get clean autoclean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /tmp
-COPY docker/compilation.mk /tmp/Makefile
+COPY docker/Makefile /tmp/Makefile
 ENV BIN_NAME github-deployment
 
 CMD [ "/bin/bash" ]
