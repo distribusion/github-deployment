@@ -16,7 +16,7 @@ release:
 	           -v "$(PWD)/Cargo.toml:/tmp/Cargo.toml" \
 	           -e "TARGET=$(TARGET)" \
 	           -e "REVISION=$(revision)" \
-	           -e "RELEASE_BIN_NAME=github-deployment-$(version)" \
+	           -e "RELEASE_BIN_NAME=github-deployment-v$(version)" \
 	           -e "GITHUB_API_TOKEN=$(GITHUB_API_TOKEN)" \
 	           github-deployment make
 

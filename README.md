@@ -6,11 +6,23 @@ Send deployment events to the Github
 
 ```
 $ make release
+$ ls -l releases/x86_64-unknown-linux-gnu/
 ```
 
 # Development
 
-*TBD*
+1. Install [rustup.rs](https://www.rustup.rs)
+
+    ```bash
+    $ curl https://sh.rustup.rs -sSf | sh
+    ```
+
+2. Install latest [rust-lang](http://rust-lang.org) (let's say `1.19.0`)
+
+    ```bash
+    $ rustup update
+    $ rustup default 1.19.0
+    ```
 
 # TODO
 
