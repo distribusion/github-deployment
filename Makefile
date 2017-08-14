@@ -3,7 +3,7 @@ include .env
 TARGET ?= x86_64-unknown-linux-gnu
 
 revision = $(shell git log -1 --pretty=format:%h)
-version = $(shell grep -E "const VERSION" src/main.rs | grep -oE --color=never "\d\.\d")
+version = $(shell grep -E "const VERSION" src/main.rs | grep -oE --color=never "[[:digit:]]\.[[:digit:]]")
 
 all: build
 
