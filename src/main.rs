@@ -176,12 +176,13 @@ fn post(url: &str, payload: &str) -> Result<String, &'static str> {
     }
 
     let response_code = &easy.response_code().unwrap_or(500);
+    
+    debug!("[DEBUG] POST {}: ({}) {:?}",
+           url, response_code, String::from_utf8(buffer.clone()));
+    
     if !success_response_codes.iter().any(|code| { code == response_code }) {
         return Err("http response code not in 200 or 201")
     }
-
-    debug!("[DEBUG] POST {}: ({}) {:?}",
-           url, response_code, String::from_utf8(buffer.clone()));
 
     String::from_utf8(buffer).map_err(|_| { "response can not be transformed to String" })
 }
